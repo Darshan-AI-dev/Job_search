@@ -291,8 +291,12 @@ def build_readme(wb, tabs, all_rows, problems):
     line("03_DASHBOARD     the shape of the market: counts by sector, function, portal, evidence "
          "status and fit band.")
     line("04_COMP_BENCHMARKS  market pay bands for Mumbai by role family and level, each with its "
-         "source and a confidence rating. This is what Comp_Check scores against.")
-    line("05 onwards       one tab per research agent, exactly as that agent filled it.")
+         "source and a confidence rating. This is what Comp_Check scores against. These bands are "
+         "Mumbai-specific and do not transfer abroad.")
+    line("05_VISA_PATHWAYS  twelve destinations ranked by how hard the work visa actually is, with "
+         "salary thresholds, income tax, and what to start preparing now. Two rows are marked "
+         "VERIFY - those are open questions, not settled facts.")
+    line("06 onwards       one tab per research agent, exactly as that agent filled it.")
     line()
     line("HOW TO WORK IT", size=12, bold=True, color=SLATE)
     line("1. Sort 02_TOP_TARGETS by Listing_Status, then work 'Verified live posting' first.")
@@ -394,6 +398,56 @@ def build_benchmarks(wb):
     return ws
 
 
+def build_visa(wb):
+    """Reference tab: how hard each destination is to actually get into, and what to prepare."""
+    path = os.path.join(ROOT, "data", "reference", "visa_pathways.csv")
+    if not os.path.exists(path):
+        return None
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        rows = list(csv.DictReader(fh))
+    if not rows:
+        return None
+
+    rows.sort(key=lambda r: r.get("Friction_Rank", ""))
+    ws = wb.create_sheet("05_VISA_PATHWAYS")
+    ws.sheet_properties.tabColor = "C55A11"
+    cols = list(rows[0].keys())
+    ws.append(cols)
+    style_header(ws, len(cols))
+
+    for i, r in enumerate(rows):
+        ws.append([r.get(c, "") for c in cols])
+        er = i + 2
+        rank = str(r.get("Friction_Rank", ""))[:1]
+        band = {"1": ("C6E0B4", "1B3A1B"), "2": ("C6E0B4", "1B3A1B"),
+                "3": ("E2F0D9", "1B3A1B"), "4": ("FFF2CC", "5A4500"),
+                "5": ("FCE4D6", "843C0C"), "6": ("F8CBAD", "843C0C")}.get(rank)
+        for j, c in enumerate(cols, start=1):
+            cell = ws.cell(row=er, column=j)
+            cell.border = BORDER
+            cell.font = Font(size=10)
+            cell.alignment = Alignment(vertical="top", wrap_text=c not in ("Country", "Primary_Hub"))
+            if c == "Friction_Rank" and band:
+                cell.fill = PatternFill("solid", fgColor=band[0])
+                cell.font = Font(size=10, bold=True, color=band[1])
+            if c == "Research_Status" and str(r.get(c, "")).startswith("VERIFY"):
+                cell.fill = PatternFill("solid", fgColor="FFF2CC")
+                cell.font = Font(size=10, bold=True, color="843C0C")
+            if c == "Source" and str(r.get(c, "")).startswith("http"):
+                cell.hyperlink = r["Source"]
+                cell.font = Font(size=10, color="0563C1", underline="single")
+
+    for j, c in enumerate(cols, start=1):
+        ws.column_dimensions[get_column_letter(j)].width = {
+            "Country": 16, "Primary_Hub": 20, "Visa_Route": 40, "Salary_Threshold": 54,
+            "Friction_Rank": 16, "Income_Tax": 18, "Relevance_To_Profile": 54,
+            "What_To_Prepare_Now": 62, "Research_Status": 20, "Source": 40,
+        }.get(c, 20)
+    ws.freeze_panes = "B2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{len(rows) + 1}"
+    return ws
+
+
 def main():
     schema = load_schema()
     tabs, problems = load_tabs(schema)
@@ -436,8 +490,9 @@ def main():
 
     build_dashboard(wb, all_rows)
     build_benchmarks(wb)
+    build_visa(wb)
 
-    for idx, (slug, rows) in enumerate(tabs, start=5):
+    for idx, (slug, rows) in enumerate(tabs, start=6):
         name = f"{idx:02d}_{slug}"[:31]
         ws = wb.create_sheet(name)
         write_grid(ws, schema, rows)
