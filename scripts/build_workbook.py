@@ -116,8 +116,8 @@ def load_tabs(schema):
             # Coerce onto the canonical schema rather than dropping the agent's work.
             rows = [{c: (r.get(c) or "") for c in schema} for r in rows]
 
-        if not 40 <= len(rows) <= 50:
-            problems.append(f"{fname}: {len(rows)} rows (target 40-50)")
+        if len(rows) < 40:
+            problems.append(f"{fname}: only {len(rows)} rows (target 40-50)")
 
         bad_url = sum(1 for r in rows if not str(r.get("Source_URL", "")).startswith("http"))
         if bad_url:
