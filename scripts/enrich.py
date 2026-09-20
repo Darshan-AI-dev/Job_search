@@ -149,7 +149,15 @@ def load_benchmarks():
 
 
 def classify(row):
-    """Map a row to a benchmark key. Returns None when the mapping is not confident."""
+    """Map a row to a benchmark key. Returns None when the mapping is not confident.
+
+    The benchmark table is Mumbai-specific, so rows outside Mumbai are never scored
+    against it - a Dubai or Singapore salary compared to a Mumbai band is noise, and
+    the tax treatment differs besides.
+    """
+    if row.get("City", "") != "Mumbai" or row.get("Country", "") != "India":
+        return None
+
     fn = (row.get("Function", "") + " " + row.get("Role_Title", "")).lower()
     ctype = row.get("Company_Type", "").lower()
     sen = row.get("Seniority", "").lower()
@@ -220,6 +228,8 @@ def midpoint(comp):
 def comp_check(row, benchmarks):
     key = classify(row)
     if not key or key not in benchmarks:
+        if row.get("City", "") != "Mumbai" or row.get("Country", "") != "India":
+            return "Not benchmarked (non-Mumbai market)"
         return "Not benchmarked"
     lo, hi = benchmarks[key]
     mid = midpoint(row.get("Comp_Range_INR_LPA", ""))
