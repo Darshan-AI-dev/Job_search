@@ -136,6 +136,100 @@ CORRECTIONS = [
     },
 ]
 
+
+# --- Gulf verification pass (lead researcher, 2026-09-20) -------------------
+# Employer-level checks. The four Gulf/Singapore lanes were killed by a rate limit
+# before their own research phase, so every row arrived as an unverified target.
+
+GULF_CORRECTIONS = [
+    {
+        "company": "aldar",
+        "set": {"Listing_Status": "Search-surfaced",
+                "Source_URL": "https://jobs.lever.co/aldar"},
+        "note": "Employer VERIFIED: Aldar runs its careers through Lever (jobs.lever.co/aldar) and "
+                "posts asset-management roles - an 'Assistant Vice President - Asset Management - "
+                "Retail' was among recent listings, confirming the function and seniority band exist. "
+                "The specific residential role in this row was not seen.",
+    },
+    {
+        "company": "dubai asset management",
+        "set": {"Listing_Status": "Search-surfaced"},
+        "note": "Employer VERIFIED and it is the strongest structural match found anywhere in this "
+                "workbook: Dubai Asset Management is Dubai Holding's residential rental platform - "
+                "10 communities, housing over 100,000 people, held for rent rather than sale. That is "
+                "the Amherst model in a different market. Careers run through GulfTalent and Dubai "
+                "Holding's portal (dhcareers.avature.net). No specific opening was seen.",
+    },
+    {
+        "company": "wasl",
+        "set": {"Listing_Status": "Search-surfaced",
+                "Source_URL": "https://careers.wasl.ae/"},
+        "note": "Employer VERIFIED with live roles: wasl's own portal (careers.wasl.ae) showed an "
+                "'Asset Manager' role - though scoped to the HOTEL investment portfolio, not residential - "
+                "and a 'Portfolio Executive' supporting the Portfolio Manager on leasing and management "
+                "of residential and retail property. wasl was established by Dubai Real Estate "
+                "Corporation and runs residential, commercial, industrial, hotel and leisure assets.",
+    },
+    {
+        "company": "emaar",
+        "note": "Employer careers portal confirmed (properties.emaar.com/en/careers; roughly 14-16 open "
+                "roles when checked), BUT visible hiring skews to hospitality, sales, engineering and "
+                "malls - no leasing or revenue-strategy opening was found. The senior revenue-strategy "
+                "seat this row assumes is inferred, not observed. Treat as outreach, not an application.",
+    },
+    {
+        "company": "enbd reit",
+        "set": {"Listing_Status": "Search-surfaced",
+                "Source_URL": "https://emiratesnbd.talentera.com/"},
+        "note": "Employer VERIFIED: ENBD REIT is a closed-ended DIFC vehicle managed by Emirates NBD "
+                "Asset Management, diversified across office, residential and alternatives, listed on "
+                "Nasdaq Dubai. Hiring runs through emiratesnbd.talentera.com. Worth noting a live market "
+                "signal: a separate Dubai Residential REIT IPO was in progress, which is exactly the kind "
+                "of vehicle that staffs up on residential asset management.",
+    },
+    {
+        "company": "emirates nbd asset management",
+        "set": {"Listing_Status": "Search-surfaced",
+                "Source_URL": "https://emiratesnbd.talentera.com/"},
+        "note": "Employer VERIFIED: runs the real estate division behind ENBD REIT and Masdar Green REIT. "
+                "Hiring through emiratesnbd.talentera.com. No specific opening seen.",
+    },
+    {
+        "company": "abu dhabi investment authority",
+        "set": {"Listing_Status": "Search-surfaced",
+                "Source_URL": "https://jobs.adia.ae/"},
+        "note": "Employer VERIFIED: ADIA posts openings at jobs.adia.ae and does employ real estate "
+                "investment managers. Process note worth planning for - ADIA recruits via psychometric "
+                "testing plus in-person interviews in Abu Dhabi, so this is a long, structured process "
+                "rather than a quick application.",
+    },
+    {
+        "company": "mubadala",
+        "set": {"Listing_Status": "Search-surfaced",
+                "Source_URL": "https://www.mubadala.com/en/careers"},
+        "note": "Employer VERIFIED with a live posting seen: 'VP, Valuations' in Abu Dhabi was listed on "
+                "LinkedIn. Mubadala runs sovereign real estate including Al Maryah Island. Its senior "
+                "investment roles are also the one Gulf pay point this research could source directly - "
+                "AED 34,120-51,790/month - which is roughly triple developer-side asset management.",
+    },
+    {
+        "company": "lunate",
+        "set": {"Listing_Status": "Search-surfaced"},
+        "note": "Employer VERIFIED with a live posting seen: Lunate was advertising an 'Investment "
+                "Associate' role in Abu Dhabi on LinkedIn.",
+    },
+]
+
+GULF_COMP_NOTE = (
+    "COMPENSATION REALITY CHECK: this row's estimate sits materially above sourced Dubai market data "
+    "(Asset Manager Dubai averages AED 10,379/month on a AED 4,336-24,844 range; Revenue Manager "
+    "averages AED 8,711/month). Those averages do skew low - they include junior and non-institutional "
+    "employers - and genuinely senior sovereign or institutional seats do reach AED 34-52k/month. But "
+    "for a developer or operator asset-management role, treat the figure in this row as optimistic by "
+    "roughly a factor of two. Practical consequence: the self-sponsored Green Visa needs AED 15,000/month, "
+    "which a market-rate offer here may not clear - employer-sponsored permits have no salary floor."
+)
+
 # ------------------------------------------------------------ comp benchmarks
 
 
@@ -218,6 +312,44 @@ def classify(row):
     return None
 
 
+GULF_BANDS = {                      # AED per month, from data/reference/comp_benchmarks.csv
+    "asset":   (10, 25),
+    "senior":  (15, 30),
+    "leasing": (11, 25),
+    "revenue": (7, 18),
+    "sov":     (34, 52),
+}
+
+
+def gulf_band(row):
+    """Pick a Dubai band for a Gulf row, or None when the mapping is not confident."""
+    fn = (row.get("Function", "") + " " + row.get("Role_Title", "")).lower()
+    ctype = row.get("Company_Type", "").lower()
+    sen = row.get("Seniority", "").lower()
+
+    if any(k in ctype for k in ("asset manager", "private", "bank")) and "invest" in fn:
+        return "sov"
+    if "sovereign" in ctype or "sovereign" in fn:
+        return "sov"
+    if "revenue" in fn or "pricing" in fn or "yield" in fn or "occupancy" in fn:
+        return "revenue"
+    if "leasing" in fn:
+        return "leasing"
+    if "asset management" in fn or "portfolio" in fn:
+        if any(k in sen for k in ("director", "head", "vp", "vice president")):
+            return "senior"
+        return "asset"
+    return None
+
+
+def gulf_midpoint(comp):
+    """Parse 'AED 30-42k/month' into a midpoint in thousands of AED per month."""
+    m = re.search(r"AED\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*k", comp or "", re.I)
+    if not m:
+        return None
+    return (float(m.group(1)) + float(m.group(2))) / 2
+
+
 def midpoint(comp):
     m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*$", comp or "")
     if not m:
@@ -226,6 +358,20 @@ def midpoint(comp):
 
 
 def comp_check(row, benchmarks):
+    if row.get("Country") in ("UAE", "Qatar"):
+        key = gulf_band(row)
+        if not key:
+            return "Not benchmarked (Gulf)"
+        lo, hi = GULF_BANDS[key]
+        mid = gulf_midpoint(row.get("Comp_Range_INR_LPA", ""))
+        if mid is None:
+            return f"No range given (Dubai band AED {lo}-{hi}k/mo)"
+        if mid > hi:
+            return f"Above Dubai market (AED {lo}-{hi}k/mo)"
+        if mid < lo:
+            return f"Below Dubai market (AED {lo}-{hi}k/mo)"
+        return f"In line (AED {lo}-{hi}k/mo)"
+
     key = classify(row)
     if not key or key not in benchmarks:
         if row.get("City", "") != "Mumbai" or row.get("Country", "") != "India":
@@ -259,7 +405,7 @@ def main():
             notes = []
             company = row.get("Company", "").lower()
 
-            for c in CORRECTIONS:
+            for c in CORRECTIONS + GULF_CORRECTIONS:
                 if c["company"] not in company:
                     continue
                 if "role" in c and c["role"] not in row.get("Role_Title", "").lower():
@@ -284,6 +430,9 @@ def main():
                 stats["inline"] += 1
             else:
                 stats["unbenchmarked"] += 1
+
+            if check.startswith("Above Dubai market"):
+                notes.append(GULF_COMP_NOTE)
 
             row["Verification_Note"] = " ".join(notes)
             row["Last_Verified"] = TODAY if notes else ""
