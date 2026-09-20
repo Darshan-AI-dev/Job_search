@@ -93,6 +93,47 @@ Agents were instructed never to invent job IDs, URLs, recruiter names or salary 
 
 ---
 
+## Second pass: what was verified directly
+
+The twelve agents worked blind to the actual postings. A follow-up research pass checked the
+highest-value rows and wrote its findings into three added columns.
+
+| Column | What it holds |
+|---|---|
+| `Comp_Check` | The row's pay estimate scored against `data/reference/comp_benchmarks.csv` — `In line`, `Above benchmark`, `Below benchmark`, or `Not benchmarked`. |
+| `Verification_Note` | What was checked and what was found, including corrections and downgrades. Blank means the row is still unverified agent work. |
+| `Last_Verified` | Date of the check. |
+
+**Compensation was the largest systematic gap.** Every agent estimate came from priors, not data.
+Benchmarked against sourced Mumbai market bands, roughly a quarter of rows sit above market.
+Each benchmark carries its own `Confidence` rating — an `Above benchmark` flag scored against a
+`Low` confidence band is a hint, not a verdict. One band (fund finance) was revised upward during
+this pass after the first version proved to be built on junior-skewed data.
+
+**Corrections applied**, from registered-office and company records:
+
+| Employer | Correction |
+|---|---|
+| Blackstone India | BKC → **Nariman Point** (Express Towers). This was the top-ranked row in the workbook. |
+| HDFC Capital Advisors | Nariman Point / Lower Parel → **Churchgate** (Ramon House). Both prior values were wrong. |
+| Nexus Select Trust | → **Vikhroli** (Embassy 247, the manager's office). |
+| NIIF | unspecified → **BKC** (UTI Tower). |
+| KKR India | unspecified → **Worli** (Altimus). |
+| IndiGrid | unspecified → **Kalina, Santacruz East** (Windsor). |
+| Godrej Fund Management | confirmed **Vikhroli** (Godrej One). |
+| Brookfield India REIT | confirmed **BKC** (Godrej BKC) — its Mumbai *assets* are in Powai, the corporate seat is not. |
+
+**One upgrade:** Welspun One's Asset Management role (8–10 yrs) was found as a live posting on
+foundit, with a posted scope close to the candidate's current remit.
+
+**One downgrade:** Stanza Living fell from fit 9 to 6. The portfolio-level revenue and occupancy
+seat the row assumed does not appear to exist — the company's visible Mumbai hiring is Cluster
+Manager (Property Operations) and Sales Manager, which are property-level execution roles.
+
+Several rows also gained negative findings worth having: no open roles surfaced at Nexus Select
+Trust, Knowledge Realty Trust or Godrej Fund Management, and HDFC Capital's visible hiring was
+internships. Those stay as outreach targets rather than being quietly presented as openings.
+
 ## Working the workbook
 
 1. **`02_TOP_TARGETS`** — fit 8+. Sort by `Listing_Status` and work `Verified live posting` first.

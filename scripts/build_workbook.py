@@ -61,9 +61,11 @@ WIDTHS = {
     "Portal": 18, "Source_URL": 42, "Listing_Status": 26, "Posting_Date": 13,
     "Date_Found": 12, "Fit_Score": 10, "Fit_Rationale": 52, "Profile_Hook": 40,
     "Application_Notes": 52, "Agent_Source": 12, "Duplicate_Of": 13,
+    "Comp_Check": 24, "Verification_Note": 64, "Last_Verified": 13,
 }
 
-WRAP_COLS = {"Key_Skills", "Fit_Rationale", "Profile_Hook", "Application_Notes", "Role_Title"}
+WRAP_COLS = {"Key_Skills", "Fit_Rationale", "Profile_Hook", "Application_Notes", "Role_Title",
+             "Verification_Note"}
 
 
 def fit_band(score):
@@ -190,6 +192,21 @@ def write_grid(ws, columns, rows, freeze="B2", banded=True):
                     cell.hyperlink = url
                     cell.font = Font(size=10, color="0563C1", underline="single")
 
+            elif col == "Comp_Check":
+                v = str(row.get("Comp_Check", ""))
+                if v.startswith("Above"):
+                    cell.fill = PatternFill("solid", fgColor="FCE4D6")
+                    cell.font = Font(size=10, color="843C0C")
+                elif v.startswith("Below"):
+                    cell.fill = PatternFill("solid", fgColor="DDEBF7")
+                    cell.font = Font(size=10, color="1F4E79")
+                elif v.startswith("In line"):
+                    cell.fill = PatternFill("solid", fgColor="E2F0D9")
+                    cell.font = Font(size=10, color="1B3A1B")
+
+            elif col == "Verification_Note" and row.get("Verification_Note"):
+                cell.font = Font(size=10, color="7030A0")
+
             elif col == "Duplicate_Of" and row.get("Duplicate_Of"):
                 cell.font = Font(size=10, color="C00000", italic=True)
 
@@ -251,13 +268,31 @@ def build_readme(wb, tabs, all_rows, problems):
     line("3-4   Weak — the title reads finance, the work is accounting, audit, ops or compliance.")
     line("1-2   Off-profile — recorded only where there was a specific reason to note it.")
     line()
+    line("SECOND PASS - WHAT WAS VERIFIED DIRECTLY", size=12, bold=True, color=SLATE)
+    line("After the twelve agents finished, a follow-up research pass checked the highest-value "
+         "rows directly and wrote its findings into three columns. Where Verification_Note is "
+         "filled in, someone went and looked; where it is blank, the row is still the agent's "
+         "unverified work.")
+    line("Comp_Check  -  compares the row's pay estimate against the market bands on the "
+         "04_COMP_BENCHMARKS tab. The agents estimated pay from priors rather than data, and the "
+         "check shows roughly a quarter of benchmarked rows sit above market. Treat an "
+         "'Above benchmark' row as an optimistic number, not a promise - and read the benchmark's "
+         "own Confidence rating before trusting the comparison.")
+    line("Verification_Note  -  what was checked and what was found, including corrections. "
+         "Office locations were corrected from company records for several major employers, one "
+         "row was upgraded to a confirmed live posting, and one was downgraded after the assumed "
+         "role turned out not to exist.")
+    line("Last_Verified  -  the date of that check. Everything else predates it.")
+    line()
     line("TAB GUIDE", size=12, bold=True, color=SLATE)
     line("01_MASTER        every row, ranked by fit score. Start here. Duplicate_Of flags a role "
          "another tab already reported, so you can hide repeats with the filter.")
     line("02_TOP_TARGETS   fit score 8 and above — the shortlist worth working first.")
     line("03_DASHBOARD     the shape of the market: counts by sector, function, portal, evidence "
          "status and fit band.")
-    line("04 onwards       one tab per research agent, exactly as that agent filled it.")
+    line("04_COMP_BENCHMARKS  market pay bands for Mumbai by role family and level, each with its "
+         "source and a confidence rating. This is what Comp_Check scores against.")
+    line("05 onwards       one tab per research agent, exactly as that agent filled it.")
     line()
     line("HOW TO WORK IT", size=12, bold=True, color=SLATE)
     line("1. Sort 02_TOP_TARGETS by Listing_Status, then work 'Verified live posting' first.")
@@ -317,6 +352,48 @@ def build_dashboard(wb, all_rows):
     return ws
 
 
+def build_benchmarks(wb):
+    """Reference tab: the market pay bands each row's Comp_Check was scored against."""
+    path = os.path.join(ROOT, "data", "reference", "comp_benchmarks.csv")
+    if not os.path.exists(path):
+        return None
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        rows = list(csv.DictReader(fh))
+    if not rows:
+        return None
+
+    ws = wb.create_sheet("04_COMP_BENCHMARKS")
+    ws.sheet_properties.tabColor = "BF8F00"
+    cols = list(rows[0].keys())
+    ws.append(cols)
+    style_header(ws, len(cols))
+
+    conf_fill = {"High": "C6E0B4", "Medium": "FFF2CC", "Low": "F2F2F2"}
+    for i, r in enumerate(rows):
+        ws.append([r.get(c, "") for c in cols])
+        er = i + 2
+        for j, c in enumerate(cols, start=1):
+            cell = ws.cell(row=er, column=j)
+            cell.border = BORDER
+            cell.font = Font(size=10)
+            cell.alignment = Alignment(vertical="top", wrap_text=c in ("Basis", "Source"))
+            if c == "Confidence":
+                cell.fill = PatternFill("solid", fgColor=conf_fill.get(r.get("Confidence", ""), "F2F2F2"))
+                cell.alignment = Alignment(horizontal="center", vertical="top")
+            if c == "Source" and str(r.get("Source", "")).startswith("http"):
+                cell.hyperlink = r["Source"]
+                cell.font = Font(size=10, color="0563C1", underline="single")
+
+    for j, c in enumerate(cols, start=1):
+        ws.column_dimensions[get_column_letter(j)].width = {
+            "Role_Family": 36, "Level": 22, "Benchmark_Low_LPA": 11,
+            "Benchmark_High_LPA": 11, "Confidence": 12, "Basis": 70, "Source": 46,
+        }.get(c, 18)
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{len(rows) + 1}"
+    return ws
+
+
 def main():
     schema = load_schema()
     tabs, problems = load_tabs(schema)
@@ -358,8 +435,9 @@ def main():
     write_grid(ws, master_cols, top)
 
     build_dashboard(wb, all_rows)
+    build_benchmarks(wb)
 
-    for idx, (slug, rows) in enumerate(tabs, start=4):
+    for idx, (slug, rows) in enumerate(tabs, start=5):
         name = f"{idx:02d}_{slug}"[:31]
         ws = wb.create_sheet(name)
         write_grid(ws, schema, rows)
