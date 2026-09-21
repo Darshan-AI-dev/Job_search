@@ -28,7 +28,7 @@ from openpyxl.utils import get_column_letter
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TABS_DIR = os.path.join(ROOT, "data", "tabs")
 SCHEMA = os.path.join(ROOT, "config", "schema_header.csv")
-OUT = os.path.join(ROOT, "Mumbai_Finance_Jobs_Master.xlsx")
+OUT = os.path.join(ROOT, "Finance_Careers_Master.xlsx")
 
 # ---------------------------------------------------------------- palette
 
@@ -232,14 +232,20 @@ def build_readme(wb, tabs, all_rows, problems):
             ws.row_dimensions[r].height = height
         return r
 
-    line("Mumbai Finance Job Search — Master Workbook", size=18, bold=True, color=NAVY, height=26)
+    line("Finance Careers — Master Workbook", size=18, bold=True, color=NAVY, height=26)
     line(f"Built {date.today().isoformat()}  ·  {len(all_rows)} rows across {len(tabs)} research tabs",
          size=11, color="595959")
     line()
     line("HOW THIS WAS BUILT", size=12, bold=True, color=SLATE)
-    line("Twelve independent research agents each worked one lane of the Mumbai finance market — a "
-         "different job family and a different mix of job portals — and each filled its own tab. "
-         "Their prompts are version-controlled in agents/prompts/ so any lane can be re-run on its own.")
+    line("The search began as twelve lanes of the Mumbai finance market — a different job family and "
+         "portal mix each — and then widened to the Gulf, Singapore, Europe, Australia and New "
+         "Zealand, Africa and the Indian Ocean, and Indian cities beyond Mumbai. Each lane is one "
+         "tab. Every prompt is version-controlled in agents/prompts/, so any single lane can be "
+         "re-run without disturbing the others.")
+    line("Geography was widened on one rule: how hard the work visa actually is. That rule is "
+         "documented on 06_VISA_PATHWAYS, and it changed the scoring — Singapore rows are marked "
+         "down a point against an identical Gulf role because the Employment Pass is a real "
+         "constraint, not a formality.")
     line()
     line("READ THIS BEFORE YOU TRUST A ROW", size=12, bold=True, color="C00000")
     line("The research machine could reach a web search index but was blocked by its network proxy "
@@ -285,26 +291,34 @@ def build_readme(wb, tabs, all_rows, problems):
     line("Last_Verified  -  the date of that check. Everything else predates it.")
     line()
     line("TAB GUIDE", size=12, bold=True, color=SLATE)
-    line("01_MASTER        every row, ranked by fit score. Start here. Duplicate_Of flags a role "
-         "another tab already reported, so you can hide repeats with the filter.")
-    line("02_TOP_TARGETS   fit score 8 and above — the shortlist worth working first.")
-    line("03_DASHBOARD     the shape of the market: counts by sector, function, portal, evidence "
-         "status and fit band.")
-    line("04_COMP_BENCHMARKS  market pay bands for Mumbai by role family and level, each with its "
+    line("02_ACTION_PLAN   START HERE. The working shortlist, with blank tracking columns to fill "
+         "in as you go. Priority 1 is a live posting worth applying to now. Priority 2 is a live "
+         "posting slightly below the top fit band, or a strong role with partial evidence — confirm "
+         "before spending time. Priority 3 is outreach: a well-matched employer with no posting "
+         "seen, where the move is a direct approach rather than an application.")
+    line("01_MASTER        every row, ranked by fit score. Duplicate_Of flags a role another tab "
+         "already reported, so you can hide repeats with the filter.")
+    line("03_TOP_TARGETS   fit score 8 and above, across every geography.")
+    line("04_DASHBOARD     the shape of the market: counts by sector, function, portal, evidence "
+         "status, fit band, country and city.")
+    line("05_COMP_BENCHMARKS  market pay bands for Mumbai by role family and level, each with its "
          "source and a confidence rating. This is what Comp_Check scores against. These bands are "
          "Mumbai-specific and do not transfer abroad.")
-    line("05_VISA_PATHWAYS  twelve destinations ranked by how hard the work visa actually is, with "
+    line("06_VISA_PATHWAYS  twelve destinations ranked by how hard the work visa actually is, with "
          "salary thresholds, income tax, and what to start preparing now. Two rows are marked "
          "VERIFY - those are open questions, not settled facts.")
-    line("06 onwards       one tab per research agent, exactly as that agent filled it.")
+    line("07 onwards       one tab per research lane, exactly as it was filled.")
     line()
     line("HOW TO WORK IT", size=12, bold=True, color=SLATE)
-    line("1. Sort 02_TOP_TARGETS by Listing_Status, then work 'Verified live posting' first.")
+    line("1. Work 02_ACTION_PLAN top down. Priority 1 rows are live postings — those are the ones "
+         "to send applications to this week.")
     line("2. For each row, Profile_Hook is the experience to lead with and Application_Notes is the "
          "angle, the gap to pre-empt, or the recruiter to approach.")
     line("3. Tab 12 is an outreach map as much as a job list — Mumbai's senior alternatives and "
          "private credit seats move through search firms, not job boards.")
-    line("4. Re-run any lane by feeding its prompt file in agents/prompts/ to a fresh agent, then "
+    line("4. Check 06_VISA_PATHWAYS before committing time to a geography — the permit, not the "
+         "role, is usually the binding constraint abroad.")
+    line("5. Re-run any lane by feeding its prompt file in agents/prompts/ to a fresh agent, then "
          "rebuild with: python3 scripts/build_workbook.py")
 
     if problems:
@@ -318,7 +332,7 @@ def build_readme(wb, tabs, all_rows, problems):
 
 
 def build_dashboard(wb, all_rows):
-    ws = wb.create_sheet("03_DASHBOARD")
+    ws = wb.create_sheet("04_DASHBOARD")
     ws.sheet_properties.tabColor = SLATE
 
     def block(title, counter, start_col, total=None):
@@ -351,6 +365,8 @@ def build_dashboard(wb, all_rows):
     block("Micro-market", Counter(r.get("Location_Micro_Market", "") for r in all_rows), 21)
     block("Seniority", Counter(r.get("Seniority", "") for r in all_rows), 25)
     block("Most-cited employers", Counter(r.get("Company", "") for r in all_rows), 29)
+    block("Country", Counter(r.get("Country", "") for r in all_rows), 33)
+    block("City", Counter(r.get("City", "") for r in all_rows), 37)
 
     ws.freeze_panes = "A2"
     return ws
@@ -366,7 +382,7 @@ def build_benchmarks(wb):
     if not rows:
         return None
 
-    ws = wb.create_sheet("04_COMP_BENCHMARKS")
+    ws = wb.create_sheet("05_COMP_BENCHMARKS")
     ws.sheet_properties.tabColor = "BF8F00"
     cols = list(rows[0].keys())
     ws.append(cols)
@@ -398,6 +414,81 @@ def build_benchmarks(wb):
     return ws
 
 
+def build_action_plan(wb, ranked):
+    """A working shortlist with tracking columns, ordered by how actionable each row is.
+
+    Tier 1 is a live posting worth applying to. Tier 2 is a live posting below the
+    top fit band, or a strong role with partial evidence. Tier 3 is outreach: a
+    well-matched employer with no posting seen, where the move is a direct approach.
+    """
+    def tier(r):
+        live = r.get("Listing_Status") == "Verified live posting"
+        surfaced = r.get("Listing_Status") == "Search-surfaced"
+        f = _score(r)
+        if live and f >= 8:
+            return "1 - Apply now"
+        if live or (surfaced and f >= 9):
+            return "2 - Strong, verify first"
+        if f >= 9:
+            return "3 - Outreach target"
+        return None
+
+    picks = []
+    for r in ranked:
+        t = tier(r)
+        if t:
+            picks.append((t, r))
+    picks.sort(key=lambda p: (p[0], -_score(p[1])))
+    if not picks:
+        return None
+
+    ws = wb.create_sheet("02_ACTION_PLAN")
+    ws.sheet_properties.tabColor = "C00000"
+    cols = ["Priority", "Role_Title", "Company", "Country", "City", "Fit_Score",
+            "Listing_Status", "Comp_Range_INR_LPA", "Source_URL", "Profile_Hook",
+            "Application_Notes",
+            "STATUS", "DATE_APPLIED", "CONTACT", "NEXT_STEP", "MY_NOTES"]
+    ws.append(cols)
+    style_header(ws, len(cols))
+
+    tier_fill = {"1 - Apply now": ("C6E0B4", "1B3A1B"),
+                 "2 - Strong, verify first": ("FFF2CC", "5A4500"),
+                 "3 - Outreach target": ("DDEBF7", "1F4E79")}
+
+    for i, (t, row) in enumerate(picks):
+        vals = [t] + [row.get(c, "") for c in cols[1:11]] + ["", "", "", "", ""]
+        ws.append(vals)
+        er = i + 2
+        for j, c in enumerate(cols, start=1):
+            cell = ws.cell(row=er, column=j)
+            cell.border = BORDER
+            cell.font = Font(size=10)
+            cell.alignment = Alignment(vertical="top",
+                                       wrap_text=c in ("Role_Title", "Profile_Hook", "Application_Notes"))
+            if c == "Priority":
+                bg, fg = tier_fill[t]
+                cell.fill = PatternFill("solid", fgColor=bg)
+                cell.font = Font(size=10, bold=True, color=fg)
+            elif c == "Fit_Score":
+                cell.alignment = Alignment(horizontal="center", vertical="top")
+                cell.font = Font(size=10, bold=True)
+            elif c == "Source_URL" and str(row.get("Source_URL", "")).startswith("http"):
+                cell.hyperlink = row["Source_URL"]
+                cell.font = Font(size=10, color="0563C1", underline="single")
+            elif c in ("STATUS", "DATE_APPLIED", "CONTACT", "NEXT_STEP", "MY_NOTES"):
+                cell.fill = PatternFill("solid", fgColor="FFF9E6")
+
+    widths = {"Priority": 22, "Role_Title": 40, "Company": 28, "Country": 13, "City": 14,
+              "Fit_Score": 9, "Listing_Status": 24, "Comp_Range_INR_LPA": 26, "Source_URL": 38,
+              "Profile_Hook": 40, "Application_Notes": 54, "STATUS": 16, "DATE_APPLIED": 14,
+              "CONTACT": 22, "NEXT_STEP": 26, "MY_NOTES": 34}
+    for j, c in enumerate(cols, start=1):
+        ws.column_dimensions[get_column_letter(j)].width = widths.get(c, 18)
+    ws.freeze_panes = "C2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{len(picks) + 1}"
+    return len(picks)
+
+
 def build_visa(wb):
     """Reference tab: how hard each destination is to actually get into, and what to prepare."""
     path = os.path.join(ROOT, "data", "reference", "visa_pathways.csv")
@@ -409,7 +500,7 @@ def build_visa(wb):
         return None
 
     rows.sort(key=lambda r: r.get("Friction_Rank", ""))
-    ws = wb.create_sheet("05_VISA_PATHWAYS")
+    ws = wb.create_sheet("06_VISA_PATHWAYS")
     ws.sheet_properties.tabColor = "C55A11"
     cols = list(rows[0].keys())
     ws.append(cols)
@@ -484,7 +575,9 @@ def main():
     ws.sheet_properties.tabColor = SLATE
     write_grid(ws, master_cols, ranked)
 
-    ws = wb.create_sheet("02_TOP_TARGETS")
+    build_action_plan(wb, ranked)
+
+    ws = wb.create_sheet("03_TOP_TARGETS")
     ws.sheet_properties.tabColor = "70AD47"
     write_grid(ws, master_cols, top)
 
@@ -492,7 +585,7 @@ def main():
     build_benchmarks(wb)
     build_visa(wb)
 
-    for idx, (slug, rows) in enumerate(tabs, start=6):
+    for idx, (slug, rows) in enumerate(tabs, start=7):
         name = f"{idx:02d}_{slug}"[:31]
         ws = wb.create_sheet(name)
         write_grid(ws, schema, rows)

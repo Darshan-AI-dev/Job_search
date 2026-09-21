@@ -1,9 +1,9 @@
-# Mumbai Finance Job Search
+# Finance Careers — Multi-Geography Job Search
 
-A twelve-agent research swarm that maps finance openings in Mumbai against one specific profile,
-and merges the results into a single formatted Excel workbook.
+A 23-lane research swarm mapping finance roles against one specific profile, across 16 countries,
+merged into a single formatted Excel workbook.
 
-**Deliverable:** `Mumbai_Finance_Jobs_Master.xlsx`
+**Deliverable:** `Finance_Careers_Master.xlsx` — 1,118 rows, 30 sheets.
 
 ---
 
@@ -14,82 +14,79 @@ single-family-rental owner-operator and real estate investment platform. Current
 and leasing strategy across a large residential portfolio. Previously ran retail disposition
 strategy for homes, and fund/JV capital planning and distribution modelling.
 
-The search targets the **Manager → VP / Director** band (roughly 5–12 years) in **Mumbai and the
-Mumbai Metropolitan Region only**.
+Target band: **Manager → VP / Director**, roughly 5–12 years.
 
-Three threads run through the whole workbook, because they are the three most portable pieces of
-that background:
+Three threads run through every lane, because they are the three most portable pieces of that
+background:
 
 - **Pricing and yield** — rent optimisation is revenue management, and revenue management is a job
-  title in hospitality, aviation, e-commerce and co-living.
+  title in hospitality, aviation, e-commerce, co-living and flexible workspace.
 - **Asset-level exit strategy** — retail disposition of homes at scale is portfolio analytics under
-  another name.
+  another name, and it maps onto anything that prices a depreciating asset for resale.
 - **Fund mechanics** — capital planning, JV structures, waterfalls and distributions are a whole
-  job family inside Mumbai's alternatives GCCs, and one very few candidates can speak to fluently.
+  job family, and one very few candidates can speak to fluently.
+
+---
+
+## Geography
+
+The search started Mumbai-only and widened on one rule: **how hard the work visa actually is**.
+That rule is researched and documented on the `06_VISA_PATHWAYS` tab, and it changes the scoring —
+Singapore rows are marked down a point against an identical Gulf role, because the Employment Pass
+is a real constraint rather than a formality.
+
+| Region | Rows | Lanes |
+|---|---|---|
+| India — Mumbai | 575 | 12 lanes by job family |
+| India — other cities | 138 | Bengaluru, Delhi NCR, Hyderabad/Pune/Chennai |
+| UAE | 160 | Real estate, sovereign capital, revenue management |
+| Singapore | 48 | Real assets |
+| Australia / New Zealand | 49 | Real assets, build-to-rent, revenue management |
+| Qatar / Saudi Arabia | 53 | Doha primary, Riyadh secondary |
+| Europe | 50 | Luxembourg, Dublin, Amsterdam, Frankfurt |
+| Africa / Indian Ocean | 45 | Mauritius, South Africa, Kenya, Morocco, Rwanda |
+
+Two Indian lanes exist specifically to recover roles the original Mumbai-only rule forced agents
+to discard — airline and travel revenue management in Gurugram, and fund administration in Pune
+and Hyderabad.
 
 ---
 
 ## How it works
 
 ```
-agents/COMMON_BRIEF.md      shared brief: profile, schema, integrity rules, fit rubric
-agents/prompts/A01..A12.md  one lane prompt per agent (job family x portal mix)
-config/schema_header.csv    the canonical 21-column contract every agent writes to
-data/tabs/*.csv             one CSV per agent — raw research output
-scripts/build_workbook.py   validates, merges, de-duplicates, formats
-Mumbai_Finance_Jobs_Master.xlsx
+agents/COMMON_BRIEF.md          shared profile, CSV contract, integrity rules, fit rubric
+agents/GEO_EXPANSION_BRIEF.md   replaces the geography rule; carries researched visa facts
+agents/prompts/*.md             one prompt per lane
+config/schema_header.csv        the canonical 26-column contract
+data/tabs/*.csv                 one CSV per lane — raw research output
+data/reference/                 compensation benchmarks and visa pathways
+scripts/enrich.py               verification pass: corrections, pay benchmarking
+scripts/build_workbook.py       validates, merges, de-duplicates, formats
+Finance_Careers_Master.xlsx
 ```
 
-Each agent owns one lane so the twelve tabs do not collide, and each writes only its own file so
-they can run in parallel without contending for the workbook. The merge step is a pure function of
-`data/tabs/` — rebuild any time with:
+Rebuild any time with:
 
 ```bash
-python3 scripts/build_workbook.py
+python3 scripts/enrich.py && python3 scripts/build_workbook.py
 ```
-
-### The twelve lanes
-
-| Agent | Lane | Portal mix |
-|---|---|---|
-| A01 | Real estate PE, REITs & InvITs — investments and asset management | iimjobs, LinkedIn, company careers, trade press |
-| A02 | Fund finance, capital planning, distributions & waterfalls | Naukri, company careers, eFinancialCareers |
-| A03 | Revenue management, pricing & yield strategy (cross-industry) | LinkedIn, Naukri, Instahyre, Hirist |
-| A04 | FP&A, business finance & corporate finance | Naukri, foundit, Glassdoor, Indeed |
-| A05 | Investment banking — real estate, infra, M&A | iimjobs, LinkedIn, company careers |
-| A06 | Equity research & buy-side investment analysis | eFinancialCareers, iimjobs, Naukri |
-| A07 | Infrastructure, project & structured finance, InvITs | Naukri, LinkedIn, company careers |
-| A08 | Global Capability Centres — strategy & business management | LinkedIn, Glassdoor, AmbitionBox |
-| A09 | Asset management, portfolio management, wealth & AIF | iimjobs, LinkedIn, Robert Walters |
-| A10 | NBFC, housing finance & credit/portfolio analytics | Naukri, foundit, Shine, TimesJobs |
-| A11 | Quant, data & decision science in finance and real assets | Instahyre, Hirist, Cutshort, Wellfound |
-| A12 | Private credit, family offices & search-firm mandates | Michael Page, Robert Walters, Native, Vahura |
 
 ---
 
-## What the data is, and what it is not
+## Working the workbook
 
-**Read this before acting on any row.**
+**Start on `02_ACTION_PLAN`.** It is the working shortlist, with blank tracking columns to fill in.
 
-The machine this ran on could reach a web search index, but its network proxy blocked direct
-access to Naukri, LinkedIn, Glassdoor, Indeed, iimjobs, eFinancialCareers, Greenhouse and
-corporate career domains — all of them return `EGRESS_BLOCKED`. Agents could therefore see what
-search returned *about* a role, but could not open the posting to confirm it.
-
-Rather than paper over that, every row carries a `Listing_Status`:
-
-| Status | Meaning |
+| Priority | Meaning |
 |---|---|
-| `Verified live posting` | Search results showed this specific role at this specific firm, with enough detail to be confident it exists. |
-| `Search-surfaced` | Search indicates the firm is hiring for this kind of role in Mumbai; the individual posting was not opened. **Confirm before applying.** |
-| `Target employer - not verified` | A well-founded target based on Mumbai presence and hiring pattern. No live-posting evidence. An outreach lead, not a listing. |
+| **1 — Apply now** | A verified live posting at fit 8+. Send an application. |
+| **2 — Strong, verify first** | A live posting below the top fit band, or a strong role with partial evidence. Confirm it is open before spending time. |
+| **3 — Outreach target** | A well-matched employer with no posting seen. The move is a direct approach, not an application. |
 
-Expect the middle and last categories to dominate. That is the honest shape of what this
-environment could establish. The workbook is a **prioritised map of where to look and what to say**,
-not a verified live feed — every row still needs the posting checked before you spend time on it.
-
-Agents were instructed never to invent job IDs, URLs, recruiter names or salary precision.
-`Comp_Basis` marks whether a compensation figure was posted, estimated from market, or unknown.
+Then: `01_MASTER` for everything ranked, `03_TOP_TARGETS` for fit 8+, `04_DASHBOARD` for where
+roles cluster, `05_COMP_BENCHMARKS` for what things actually pay, `06_VISA_PATHWAYS` before
+committing to any geography.
 
 ---
 
