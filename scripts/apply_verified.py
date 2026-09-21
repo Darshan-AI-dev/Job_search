@@ -24,6 +24,25 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCHEMA = open(os.path.join(ROOT, "config", "schema_header.csv")).read().strip().split(",")
 
 
+CITY_TO_COUNTRY = {
+    "dubai": "UAE", "abu dhabi": "UAE", "doha": "Qatar", "riyadh": "Saudi Arabia",
+    "singapore": "Singapore", "mumbai": "India", "bengaluru": "India", "gurugram": "India",
+    "hyderabad": "India", "pune": "India", "chennai": "India", "luxembourg": "Luxembourg",
+    "dublin": "Ireland", "amsterdam": "Netherlands", "frankfurt": "Germany",
+    "sydney": "Australia", "melbourne": "Australia", "auckland": "New Zealand",
+    "nairobi": "Kenya",
+}
+
+
+def country_for(city):
+    """Postings files carry a city but no country; the workbook filters on country."""
+    low = (city or "").lower()
+    for key, value in CITY_TO_COUNTRY.items():
+        if key in low:
+            return value
+    return ""
+
+
 def norm(text):
     return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
 
@@ -43,25 +62,70 @@ def load_postings():
     return out
 
 
+GENERIC = {"manager", "senior", "vice", "president", "director", "head", "lead",
+           "associate", "analyst", "executive", "assistant", "officer", "specialist"}
+
+# A posting only verifies a row if it is also the same GRADE. Matching a VP row to
+# an analyst posting would claim a senior seat is open on the evidence of a junior one.
+SENIORITY_RANK = (
+    ("principal", 6), ("head", 6), ("director", 6), ("vice president", 5), ("vp", 5),
+    ("avp", 4), ("senior manager", 4), ("manager", 3), ("senior associate", 2),
+    ("senior analyst", 2), ("associate", 2), ("analyst", 1), ("executive", 1),
+)
+
+
+def rank(text):
+    """Grade of a title or seniority label, 0 when it cannot be read."""
+    low = (text or "").lower()
+    for word, value in SENIORITY_RANK:
+        if word in low:
+            return value
+    return 0
+
+
+def grades_compatible(posting, row):
+    p = rank(posting.get("Seniority")) or rank(posting.get("Role_Title"))
+    r = rank(row.get("Seniority")) or rank(row.get("Role_Title"))
+    if not p or not r:
+        return True          # unreadable grade on either side - let the title test decide
+    return abs(p - r) <= 1
+
+
+def distinctive(title):
+    """Title tokens that actually identify the job, not the grade."""
+    return {t for t in re.split(r"[^a-z0-9]+", (title or "").lower())
+            if len(t) > 3 and t not in GENERIC}
+
+
 def best_match(posting, rows):
-    """Closest existing row for a posting: same employer, same city, nearest title."""
+    """Find an existing row that is genuinely THE SAME JOB as this posting.
+
+    An earlier version matched on any single shared token, which let a
+    'Strategic Planning' posting verify a 'Residential Leasing' row - the same
+    employer and grade, an entirely different job. Verification has to mean the
+    posting IS the row, so the bar is: same employer, same city, and either an
+    identical normalised title or at least two shared distinctive tokens.
+    Anything weaker is reported as unmatched and added as its own row instead.
+    """
     pc, pcity = norm(posting.get("Company")), norm(posting.get("City"))
-    ptok = tokens(posting.get("Role_Title"))
+    ptitle, ptok = norm(posting.get("Role_Title")), distinctive(posting.get("Role_Title"))
     best, best_score = None, 0
     for row in rows:
         rc = norm(row.get("Company"))
-        if not rc or not pc:
+        if not rc or not pc or not (pc in rc or rc in pc):
             continue
-        # Employer names vary ("Aldar" vs "Aldar Estates"), so accept containment.
-        if not (pc in rc or rc in pc):
+        rcity = norm(row.get("City"))
+        if pcity and rcity and pcity not in rcity and rcity not in pcity:
             continue
-        if pcity and norm(row.get("City")) and pcity not in norm(row.get("City")) \
-                and norm(row.get("City")) not in pcity:
+        if not grades_compatible(posting, row):
             continue
-        overlap = len(ptok & tokens(row.get("Role_Title")))
-        if overlap > best_score:
+        rtitle = norm(row.get("Role_Title"))
+        if rtitle == ptitle:
+            return row
+        overlap = len(ptok & distinctive(row.get("Role_Title")))
+        if overlap >= 2 and overlap > best_score:
             best, best_score = row, overlap
-    return best if best_score >= 1 else None
+    return best
 
 
 def main():
@@ -116,14 +180,64 @@ def main():
             for row in tabs[path]:
                 w.writerow({c: row.get(c, "") for c in SCHEMA})
 
+    # A verified posting that matches no row is still real data. Add it as its own
+    # row in a dedicated tab rather than forcing it onto an approximate match.
+    if unmatched:
+        extra = os.path.join(ROOT, "data", "tabs", "25_verified_live_postings.csv")
+        existing = []
+        if os.path.exists(extra):
+            with open(extra, newline="", encoding="utf-8-sig") as fh:
+                existing = list(csv.DictReader(fh))
+        have = {(norm(r.get("Company")), norm(r.get("Role_Title"))) for r in existing}
+        added = 0
+        for p in unmatched:
+            key = (norm(p.get("Company")), norm(p.get("Role_Title")))
+            if key in have:
+                continue
+            have.add(key)
+            row = {c: "" for c in SCHEMA}
+            row.update({
+                "Listing_ID": f"VP-{len(existing) + added + 1:03d}",
+                "Role_Title": p.get("Role_Title", ""),
+                "Company": p.get("Company", ""),
+                "Company_Type": "Unclassified",
+                "Country": p.get("Country") or country_for(p.get("City")),
+                "City": p.get("City", ""),
+                "Location_Micro_Market": p.get("City", ""),
+                "Seniority": p.get("Seniority", ""),
+                "Experience_Required": p.get("Experience_Required", "Unknown"),
+                "Function": "See role title",
+                "Comp_Range_INR_LPA": "Not disclosed",
+                "Comp_Basis": "Unknown",
+                "Portal": "Verification pass",
+                "Source_URL": p.get("Source_URL", ""),
+                "Listing_Status": "Verified live posting",
+                "Posting_Date": p.get("Posting_Date", "Unknown"),
+                "Date_Found": "2026-09-21",
+                "Fit_Score": "6",
+                "Fit_Rationale": "Found by direct posting search rather than by a research lane, so it is "
+                                 "not fit-scored against the profile - read the title and judge it yourself.",
+                "Profile_Hook": "",
+                "Application_Notes": "Added from a verification sweep because it matched no existing row. "
+                                     "Real and live, but unscored and unclassified.",
+                "Agent_Source": "VERIFIED",
+                "Verification_Note": f"Evidence: {p.get('Evidence', 'not recorded')}",
+                "Last_Verified": "2026-09-21",
+            })
+            existing.append(row)
+            added += 1
+        if added:
+            with open(extra, "w", newline="", encoding="utf-8") as fh:
+                w = csv.DictWriter(fh, fieldnames=SCHEMA, extrasaction="ignore")
+                w.writeheader()
+                for r in existing:
+                    w.writerow({c: r.get(c, "") for c in SCHEMA})
+            print(f"  added as new rows     : {added} (data/tabs/25_verified_live_postings.csv)")
+
     print(f"Verified postings loaded : {len(postings)}")
     print(f"  upgraded existing rows : {upgraded}")
     print(f"  already verified       : {already}")
     print(f"  no matching row        : {len(unmatched)}")
-    for p in unmatched:
-        print(f"      {p.get('Company')} | {p.get('Role_Title')} | {p.get('City')}  [{p['_src']}]")
-    if unmatched:
-        print("  ^ these are genuine finds with no row to attach to - add them by hand if they matter.")
     return 0
 
 
