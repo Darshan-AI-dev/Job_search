@@ -134,7 +134,9 @@ def mark_duplicates(all_rows):
     """Annotate cross-tab repeats. First occurrence stays blank; repeats point back to it."""
     seen = {}
     for row in all_rows:
-        key = (norm(row.get("Company")), norm(row.get("Role_Title")))
+        # City is part of the key: the same employer and title in two cities is two
+        # different jobs, not a repeat.
+        key = (norm(row.get("Company")), norm(row.get("Role_Title")), norm(row.get("City")))
         if key in seen:
             row["Duplicate_Of"] = seen[key]
         else:
