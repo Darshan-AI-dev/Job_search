@@ -242,7 +242,7 @@ GULF_COMP_NOTE = (
 # units, so a Dublin salary is never silently measured against a Mumbai band.
 
 REGION_FILES = ("comp_benchmarks_sg_anz.csv", "comp_benchmarks_europe.csv",
-                "comp_benchmarks_gulf_africa.csv")
+                "comp_benchmarks_gulf_africa.csv", "comp_benchmarks_africa_frontier.csv")
 
 FAMILY_KEYWORDS = {
     "real estate asset management": ("asset management", "asset manager", "portfolio manage"),
@@ -348,8 +348,39 @@ def pick_band(row, bands):
     return best
 
 
+BROAD_KEYWORDS = ("investment", "portfolio", "fund", "finance", "banking", "asset", "analyst")
+
+
+def pick_band_broad(row, bands):
+    """Fallback for thin markets whose bands are named generically.
+
+    Only used when the precise matcher finds nothing, so a broad family can never
+    outrank a specific one in a market that has both.
+    """
+    city = (row.get("City") or "").lower()
+    country = (row.get("Country") or "").lower()
+    text = ((row.get("Function") or "") + " " + (row.get("Role_Title") or "")).lower()
+    sen = (row.get("Seniority") or "").lower()
+    senior = any(k in sen for k in ("vp", "vice president", "director", "principal", "head"))
+
+    best, best_score = None, 0
+    for b in bands:
+        market = (b.get("Market") or "").lower()
+        if not ((city and city in market) or (country and country in market)):
+            continue
+        fam = (b.get("Role_Family") or "").lower()
+        if not any(w in fam and w in text for w in BROAD_KEYWORDS):
+            continue
+        lvl = (b.get("Level") or "").lower()
+        score = 1 + (1 if (senior and any(k in lvl for k in ("vp", "director", "head")))
+                     or (not senior and "manager" in lvl) else 0)
+        if score > best_score:
+            best, best_score = b, score
+    return best
+
+
 def regional_comp_check(row, bands):
-    band = pick_band(row, bands)
+    band = pick_band(row, bands) or pick_band_broad(row, bands)
     if not band:
         return None
     parsed = parse_comp(row.get("Comp_Range_INR_LPA", ""))
