@@ -545,6 +545,7 @@ def build_visa(wb):
             "Country": 16, "Primary_Hub": 20, "Visa_Route": 40, "Salary_Threshold": 54,
             "Friction_Rank": 16, "Income_Tax": 18, "Relevance_To_Profile": 54,
             "What_To_Prepare_Now": 62, "Research_Status": 20, "Source": 40,
+            "Pay_Vs_Threshold": 70,
         }.get(c, 20)
     ws.freeze_panes = "B2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{len(rows) + 1}"
