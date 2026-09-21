@@ -101,11 +101,14 @@ CORRECTIONS = [
     },
     {
         "company": "stanza living",
+        "city": "Mumbai",
         "set": {"Fit_Score": "6"},
-        "note": "DOWNGRADED from 9. The portfolio-level revenue/occupancy seat this row assumed was not "
-                "found. Stanza Living's visible Mumbai hiring is Cluster Manager - Property Operations "
-                "and Sales Manager, which are property-level execution roles, not portfolio revenue "
-                "strategy. Also note the company is Gurugram-headquartered.",
+        "note": "DOWNGRADED from 9, for Mumbai only. The portfolio-level revenue and occupancy seat this "
+                "row assumed was not found in Mumbai - Stanza Living's visible Mumbai hiring is Cluster "
+                "Manager (Property Operations) and Sales Manager, which are property-level execution "
+                "roles. The reason is that the company is Gurugram-headquartered, so the portfolio seat "
+                "sits at HQ. See the Delhi NCR tab, where the same employer scores 9 on exactly that "
+                "logic. This downgrade is about the city, not the employer.",
     },
     {
         "company": "knowledge realty trust",
@@ -229,6 +232,151 @@ GULF_COMP_NOTE = (
     "roughly a factor of two. Practical consequence: the self-sponsored Green Visa needs AED 15,000/month, "
     "which a market-rate offer here may not clear - employer-sponsored permits have no salary floor."
 )
+
+
+
+# --------------------------------------------------- regional pay benchmarking
+# The Mumbai bands are in INR LPA and the Gulf bands in AED/month, but the wider
+# search now spans sixteen countries quoting in their own currency and period.
+# These helpers load every regional benchmark file and compare each row in its own
+# units, so a Dublin salary is never silently measured against a Mumbai band.
+
+REGION_FILES = ("comp_benchmarks_sg_anz.csv", "comp_benchmarks_europe.csv",
+                "comp_benchmarks_gulf_africa.csv")
+
+FAMILY_KEYWORDS = {
+    "real estate asset management": ("asset management", "asset manager", "portfolio manage"),
+    "leasing": ("leasing",),
+    "revenue management": ("revenue", "pricing", "yield", "occupancy", "monetis", "monetiz"),
+    "fund finance": ("fund financ", "fund account", "fund administration", "fund controller",
+                     "capital call", "distribution", "waterfall", "carry", "fund operations",
+                     "fund services", "investor reporting", "portfolio monitoring"),
+    "private equity": ("private equity", "real assets", "investment manager", "investments",
+                       "private credit", "special situations"),
+    "reit capital management": ("capital management", "reit", "fund management"),
+    "sovereign": ("sovereign", "institutional investment"),
+}
+
+
+def load_region_bands():
+    """Every regional band, as a list of dicts. Missing files are simply skipped."""
+    bands = []
+    ref = os.path.join(ROOT, "data", "reference")
+    for fname in REGION_FILES:
+        path = os.path.join(ref, fname)
+        if not os.path.exists(path):
+            continue
+        with open(path, newline="", encoding="utf-8-sig") as fh:
+            for b in csv.DictReader(fh):
+                try:
+                    b["_lo"] = float(str(b["Benchmark_Low_LPA"]).replace(",", ""))
+                    b["_hi"] = float(str(b["Benchmark_High_LPA"]).replace(",", ""))
+                except (TypeError, ValueError, KeyError):
+                    continue
+                bands.append(b)
+    return bands
+
+
+def parse_comp(text):
+    """Parse a pay string into (currency, low, high, period).
+
+    Handles the shapes the lanes actually produced: 'AUD 160-200k + bonus',
+    'EUR 95,000-130,000', 'QAR 45-65k/month (...)', 'ZAR 1,100,000-1,600,000/yr'.
+    Returns None when there is no parseable range.
+    """
+    if not text:
+        return None
+    m = re.search(
+        r"(?:\b([A-Z]{3})\b\s*)?(\d[\d,]*(?:\.\d+)?)\s*-\s*(\d[\d,]*(?:\.\d+)?)\s*(k\b)?",
+        text)
+    if not m:
+        return None
+    cur = m.group(1)
+    try:
+        lo = float(m.group(2).replace(",", ""))
+        hi = float(m.group(3).replace(",", ""))
+    except ValueError:
+        return None
+    if m.group(4):
+        lo, hi = lo * 1000, hi * 1000
+    period = "month" if re.search(r"/\s*mo", text, re.I) else "year"
+    return cur, lo, hi, period
+
+
+def band_units(band):
+    """Split a band's Currency field into (code, period)."""
+    cur = (band.get("Currency") or "").strip()
+    code = cur.split("/")[0].strip().upper()[:3]
+    period = "month" if "month" in cur.lower() or "/ mo" in cur.lower() else "year"
+    return code, period
+
+
+def pick_band(row, bands):
+    """Best regional band for a row, or None when nothing matches confidently."""
+    city = (row.get("City") or "").lower()
+    country = (row.get("Country") or "").lower()
+    text = ((row.get("Function") or "") + " " + (row.get("Role_Title") or "")).lower()
+    sen = (row.get("Seniority") or "").lower()
+    senior = any(k in sen for k in ("vp", "vice president", "director", "principal", "head"))
+
+    best, best_score = None, 0
+    for b in bands:
+        market = (b.get("Market") or "").lower()
+        if city and city in market:
+            geo = 2
+        elif country and country in market:
+            geo = 1
+        else:
+            continue
+
+        fam = (b.get("Role_Family") or "").lower()
+        hits = 0
+        for key, words in FAMILY_KEYWORDS.items():
+            if key in fam or any(w in fam for w in words):
+                if any(w in text for w in words):
+                    hits += 1
+        if not hits:
+            continue
+
+        lvl = (b.get("Level") or "").lower()
+        lvl_match = 1 if (senior and any(k in lvl for k in ("vp", "director", "principal", "head"))) \
+            or (not senior and "manager" in lvl and "senior" not in lvl) else 0
+
+        score = geo * 10 + hits * 3 + lvl_match
+        if score > best_score:
+            best, best_score = b, score
+    return best
+
+
+def regional_comp_check(row, bands):
+    band = pick_band(row, bands)
+    if not band:
+        return None
+    parsed = parse_comp(row.get("Comp_Range_INR_LPA", ""))
+    code, period = band_units(band)
+    lo, hi = band["_lo"], band["_hi"]
+    conf = band.get("Confidence", "")
+    label = f"{code} {lo:,.0f}-{hi:,.0f}/{period}"
+
+    if not parsed:
+        return f"No range given (benchmark {label})"
+    rcur, rlo, rhi, rperiod = parsed
+    if rcur and code and rcur != code:
+        return f"Not benchmarked (currency mismatch vs {label})"
+    if rperiod != period:
+        # Normalise a yearly figure to monthly, or vice versa, before comparing.
+        if rperiod == "year" and period == "month":
+            rlo, rhi = rlo / 12, rhi / 12
+        else:
+            rlo, rhi = rlo * 12, rhi * 12
+    mid = (rlo + rhi) / 2
+    suffix = f" [{conf} confidence]" if conf else ""
+    if mid > hi:
+        return f"Above market ({label}){suffix}"
+    if mid < lo:
+        return f"Below market ({label}){suffix}"
+    return f"In line ({label}){suffix}"
+
 
 # ------------------------------------------------------------ comp benchmarks
 
@@ -357,8 +505,13 @@ def midpoint(comp):
     return (float(m.group(1)) + float(m.group(2))) / 2
 
 
-def comp_check(row, benchmarks):
-    if row.get("Country") in ("UAE", "Qatar"):
+def comp_check(row, benchmarks, region_bands=None):
+    if region_bands and row.get("Country") != "India":
+        hit = regional_comp_check(row, region_bands)
+        if hit:
+            return hit
+
+    if row.get("Country") == "UAE":
         key = gulf_band(row)
         if not key:
             return "Not benchmarked (Gulf)"
@@ -392,6 +545,7 @@ def main():
     schema = open(SCHEMA, encoding="utf-8").read().strip().split(",")
     out_cols = schema + [c for c in NEW_COLS if c not in schema]
     benchmarks = load_benchmarks()
+    region_bands = load_region_bands()
 
     stats = {"rows": 0, "corrected": 0, "upgraded": 0, "downgraded": 0,
              "above": 0, "below": 0, "inline": 0, "unbenchmarked": 0}
@@ -410,6 +564,10 @@ def main():
                     continue
                 if "role" in c and c["role"] not in row.get("Role_Title", "").lower():
                     continue
+                # A correction may be true in one city and false in another - the same
+                # employer can staff a function at HQ that it does not staff elsewhere.
+                if "city" in c and c["city"] != row.get("City", ""):
+                    continue
                 for field, value in c.get("set", {}).items():
                     if row.get(field) != value:
                         row[field] = value
@@ -420,7 +578,7 @@ def main():
                 if "DOWNGRADED" in c["note"]:
                     stats["downgraded"] += 1
 
-            check = comp_check(row, benchmarks)
+            check = comp_check(row, benchmarks, region_bands)
             row["Comp_Check"] = check
             if check.startswith("Above"):
                 stats["above"] += 1

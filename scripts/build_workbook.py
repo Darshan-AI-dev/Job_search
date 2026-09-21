@@ -376,17 +376,27 @@ def build_dashboard(wb, all_rows):
 
 def build_benchmarks(wb):
     """Reference tab: the market pay bands each row's Comp_Check was scored against."""
-    path = os.path.join(ROOT, "data", "reference", "comp_benchmarks.csv")
-    if not os.path.exists(path):
-        return None
-    with open(path, newline="", encoding="utf-8-sig") as fh:
-        rows = list(csv.DictReader(fh))
+    ref = os.path.join(ROOT, "data", "reference")
+    rows = []
+    for fname in sorted(os.listdir(ref)) if os.path.isdir(ref) else []:
+        if not fname.startswith("comp_benchmarks") or not fname.endswith(".csv"):
+            continue
+        with open(os.path.join(ref, fname), newline="", encoding="utf-8-sig") as fh:
+            rows.extend(csv.DictReader(fh))
     if not rows:
         return None
+    # Union the columns: regional files carry Market and Currency, the original does not.
+    seen_cols = []
+    for r in rows:
+        for c in r:
+            if c and c not in seen_cols:
+                seen_cols.append(c)
+    rows = [{c: (r.get(c) or "") for c in seen_cols} for r in rows]
+    rows.sort(key=lambda r: (r.get("Market", ""), r.get("Role_Family", "")))
 
     ws = wb.create_sheet("05_COMP_BENCHMARKS")
     ws.sheet_properties.tabColor = "BF8F00"
-    cols = list(rows[0].keys())
+    cols = seen_cols
     ws.append(cols)
     style_header(ws, len(cols))
 
@@ -409,7 +419,7 @@ def build_benchmarks(wb):
     for j, c in enumerate(cols, start=1):
         ws.column_dimensions[get_column_letter(j)].width = {
             "Role_Family": 36, "Level": 22, "Benchmark_Low_LPA": 11,
-            "Benchmark_High_LPA": 11, "Confidence": 12, "Basis": 70, "Source": 46,
+            "Benchmark_High_LPA": 11, "Confidence": 12, "Basis": 70, "Source": 46, "Market": 24, "Currency": 16,
         }.get(c, 18)
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{len(rows) + 1}"
